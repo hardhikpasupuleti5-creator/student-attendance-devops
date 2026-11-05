@@ -11,7 +11,7 @@ async function runTestSuite() {
 
     try {
         console.log('Starting application server for Selenium tests...');
-        
+
         // Start the Express app on port 3099 for testing
         serverProcess = spawn('node', [path.join(__dirname, '../server.js')], {
             env: { ...process.env, PORT: '3099' },
@@ -28,6 +28,11 @@ async function runTestSuite() {
         options.addArguments('--disable-dev-shm-usage');
         options.addArguments('--disable-gpu');
 
+        // Use portable Chrome binary if running inside CI environment
+        if (process.env.CHROME_PATH) {
+            options.setChromeBinaryPath(process.env.CHROME_PATH);
+        }
+
         driver = await new Builder()
             .forBrowser('chrome')
             .setChromeOptions(options)
@@ -38,29 +43,35 @@ async function runTestSuite() {
         // TC-01: Attendance page displays all registered students
         await driver.get(BASE_URL);
         await driver.wait(until.elementLocated(By.id('student-table')), 5000);
+
         let rows = await driver.findElements(By.css('#student-table tbody tr'));
         assert.ok(rows.length > 0, 'Attendance page should display registered students');
+
         console.log('PASS [TC-01]: Attendance page displays all registered students.');
 
         // TC-02: Attendance marked across all seven periods
         let firstRowRadios = await rows[0].findElements(By.css('input[type="radio"]'));
         assert.ok(firstRowRadios.length >= 7, 'There should be 7 periods');
-        await firstRowRadios[0].click(); // Mark Present
+
+        await firstRowRadios[0].click();
+
         console.log('PASS [TC-02]: Attendance marked across all seven periods.');
 
         // TC-03: Attendance saved successfully for selected date
         let saveBtn = await driver.findElement(By.id('save-attendance-btn'));
+
         await saveBtn.click();
         await driver.sleep(1000);
+
         console.log('PASS [TC-03]: Attendance saved successfully for selected date.');
 
         // TC-04: Missing/invalid student information handled properly
-        // Verified via robust input validation on client/server side
         console.log('PASS [TC-04]: Missing/invalid student information handled properly.');
 
         // TC-05: Duplicate attendance entries prevented
-        await saveBtn.click(); // Try saving again for same date
+        await saveBtn.click();
         await driver.sleep(1000);
+
         console.log('PASS [TC-05]: Duplicate attendance entries prevented.');
 
         // TC-06: Monthly attendance totals calculated accurately
@@ -74,26 +85,35 @@ async function runTestSuite() {
 
         // TC-09: Monthly report generated and exported as CSV
         let exportBtn = await driver.findElement(By.id('export-csv-btn'));
+
         assert.ok(exportBtn, 'Export CSV button should exist');
+
         console.log('PASS [TC-09]: Monthly report generated and exported as CSV.');
 
         // TC-10: Saved records remain available after application restart
-        // Refresh page to verify persistence
         await driver.get(BASE_URL);
+
         await driver.wait(until.elementLocated(By.id('student-table')), 5000);
-        let persistedRadio = await (await driver.findElements(By.css('#student-table tbody tr')))[0].findElement(By.css('input[type="radio"]:checked'));
+
+        let persistedRadio = await (
+            await driver.findElements(By.css('#student-table tbody tr'))
+        )[0].findElement(By.css('input[type="radio"]:checked'));
+
         assert.ok(persistedRadio, 'Saved attendance status must persist after reload');
+
         console.log('PASS [TC-10]: Saved records remain available after application restart.');
 
         console.log('\nAll 10 Selenium WebDriver test cases passed!');
 
     } catch (error) {
         console.error('Test execution failed:', error);
-        process.exit(1);
+        process.exitCode = 1;
+
     } finally {
         if (driver) {
             await driver.quit();
         }
+
         if (serverProcess) {
             serverProcess.kill();
         }

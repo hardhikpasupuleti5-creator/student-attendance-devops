@@ -21,7 +21,15 @@ pipeline {
 
         stage('Run Automated Selenium Tests') {
             steps {
-                sh 'npm test'
+                sh '''
+                    echo "Setting up portable Chrome for CI..."
+                    npx @puppeteer/browsers install chrome@stable chromedriver@stable
+                    export CHROME_PATH=$(find $HOME/.cache/puppeteer/chrome -name "chrome" -type f | head -n 1)
+                    export CHROMEDRIVER_DIR=$(dirname $(find $HOME/.cache/puppeteer/chromedriver -name "chromedriver" -type f | head -n 1))
+                    export PATH=$PATH:$CHROMEDRIVER_DIR
+                    echo "Portable Chrome binary located at: $CHROME_PATH"
+                    npm test
+                '''
             }
         }
 
