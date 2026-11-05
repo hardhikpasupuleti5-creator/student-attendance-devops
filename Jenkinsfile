@@ -15,26 +15,26 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                bat 'npm install'
+                sh 'npm install'
             }
         }
 
         stage('Run Automated Selenium Tests') {
             steps {
-                bat 'npm test'
+                sh 'npm test'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                bat 'docker build -t %IMAGE_NAME%:%IMAGE_TAG% .'
+                sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                bat 'kubectl apply -f k8s-deployment.yaml'
-                bat 'kubectl rollout status deployment/student-attendance-deployment'
+                sh 'kubectl apply -f k8s-deployment.yaml'
+                sh 'kubectl rollout status deployment/student-attendance-deployment'
             }
         }
     }
