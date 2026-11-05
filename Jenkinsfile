@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "student-attendance-app"
         IMAGE_TAG  = "latest"
+        BROWSER_CACHE = "${WORKSPACE}/.browser-cache"
     }
 
     stages {
@@ -22,12 +23,41 @@ pipeline {
         stage('Run Automated Selenium Tests') {
             steps {
                 sh '''
-                    echo "Setting up portable Chrome for CI..."
-                    npx @puppeteer/browsers install chrome@stable chromedriver@stable
-                    export CHROME_PATH=$(find $HOME/.cache/puppeteer/chrome -name "chrome" -type f | head -n 1)
-                    export CHROMEDRIVER_DIR=$(dirname $(find $HOME/.cache/puppeteer/chromedriver -name "chromedriver" -type f | head -n 1))
-                    export PATH=$PATH:$CHROMEDRIVER_DIR
-                    echo "Portable Chrome binary located at: $CHROME_PATH"
+                    set -e
+
+                    echo "Setting up Chrome and ChromeDriver..."
+
+                    mkdir -p "$BROWSER_CACHE"
+
+                    npx @puppeteer/browsers install chrome@stable --path "$BROWSER_CACHE"
+
+                    npx @puppeteer/browsers install chromedriver@stable --path "$BROWSER_CACHE"
+
+                    CHROME_PATH=$(find "$BROWSER_CACHE" -type f -path '*/chrome-linux64/chrome' -print -quit)
+
+                    CHROMEDRIVER_PATH=$(find "$BROWSER_CACHE" -type f -path '*/chromedriver-linux64/chromedriver' -print -quit)
+
+                    if [ -z "$CHROME_PATH" ] || [ ! -x "$CHROME_PATH" ]; then
+                        echo "ERROR: Chrome binary not found!"
+                        exit 1
+                    fi
+
+                    if [ -z "$CHROMEDRIVER_PATH" ] || [ ! -x "$CHROMEDRIVER_PATH" ]; then
+                        echo "ERROR: ChromeDriver binary not found!"
+                        exit 1
+                    fi
+
+                    export CHROME_PATH
+                    export PATH="$(dirname "$CHROMEDRIVER_PATH"):$PATH"
+
+                    echo "Chrome location: $CHROME_PATH"
+                    echo "ChromeDriver location: $CHROMEDRIVER_PATH"
+
+                    "$CHROME_PATH" --version
+                    "$CHROMEDRIVER_PATH" --version
+
+                    echo "Starting Selenium tests..."
+
                     npm test
                 '''
             }
@@ -51,6 +81,7 @@ pipeline {
         success {
             echo 'Pipeline succeeded! Student Attendance System deployed and verified.'
         }
+
         failure {
             echo 'Pipeline failed. Check test or deployment logs.'
         }
